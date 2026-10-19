@@ -1,0 +1,10 @@
+# Example only; adapt to the installed Hermes configuration format.
+agent_router:
+  default: claude-code
+  fallback: codex
+permissions:
+  production: approval_required
+  secrets: deny
+mcp:
+  qwa: scoped
+  obsidian: scoped
