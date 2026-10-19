@@ -13,7 +13,7 @@ PostgreSQL decisions lock the target row with `SELECT ... FOR UPDATE` inside the
 
 ## Authentication
 
-The HTTP surface requires `Authorization: Bearer <QWA_APPROVAL_TOKEN>`. The token must come from a secret manager/environment variable; never commit it.
+The HTTP surface requires `Authorization: Bearer <QWA_APPROVAL_TOKEN>`. The token must come from a secret manager/environment variable; never commit it. The authenticated operator identity is configured separately with `QWA_APPROVAL_OPERATOR`; the request body cannot choose the approver identity.
 
 The reference HTTP server binds to localhost by default. A production deployment should put it behind TLS, network access controls, rate limiting, and an identity-aware reverse proxy. The API intentionally exposes only:
 
