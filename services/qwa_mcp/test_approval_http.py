@@ -10,20 +10,21 @@ class ApprovalHTTPTests(unittest.TestCase):
         self.path = Path(tempfile.mkdtemp()) / "approvals.sqlite3"
         self.store = SQLiteApprovalStore(str(self.path))
         self.store.create(ApprovalRecord("r1", "hermes", "request_change", "h1", "pending"))
-        self.api = ApprovalAPI(self.store, token="secret")
+        self.api = ApprovalAPI(self.store, token="secret", operator="alice")
 
     def test_authentication(self):
         self.assertTrue(self.api.authenticate("Bearer secret"))
         self.assertFalse(self.api.authenticate("Bearer wrong"))
 
-    def test_get_and_approve(self):
+    def test_get_and_approve_binds_authenticated_operator(self):
         status, body = self.api.get("r1")
         self.assertEqual(status, 200)
         self.assertEqual(body["status"], "pending")
-        status, body = self.api.decide("r1", "approved", "operator", "reviewed")
+        status, body = self.api.decide("r1", "approved", "reviewed")
         self.assertEqual(status, 200)
         self.assertEqual(body["status"], "approved")
-        self.assertEqual(self.store.get("r1").status, "approved")
+        self.assertEqual(body["approver"], "alice")
+        self.assertEqual(self.store.get("r1").approver, "alice")
 
 if __name__ == "__main__":
     unittest.main()
