@@ -1,7 +1,12 @@
-"""Provider-neutral Render HTTP gateway."""
+"""Provider-neutral Render HTTP gateway with bounded deploy polling."""
 import json
 import os
-from urllib import error, request
+import time
+from urllib import error, parse, request
+
+TERMINAL_SUCCESS = {"live"}
+TERMINAL_FAILURE = {"build_failed", "update_failed", "canceled", "deactivated", "pre_deploy_failed"}
+
 
 class RenderGateway:
     def __init__(self, api_key=None, base_url="https://api.render.com/v1"):
@@ -25,13 +30,49 @@ class RenderGateway:
             detail = exc.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"Render API {exc.code}: {detail}") from exc
 
+    @staticmethod
+    def _service_path(service):
+        return parse.quote(service, safe="")
+
     def deploy(self, service, revision):
-        return self._request("POST", f"/services/{service}/deploys",
-                             {"commitId": revision, "deployMode": "build_and_deploy"})
+        return self._request(
+            "POST", f"/services/{self._service_path(service)}/deploys",
+            {"commitId": revision},
+        )
 
     def status(self, service):
-        return self._request("GET", f"/services/{service}/deploys?limit=1")
+        data = self._request(
+            "GET", f"/services/{self._service_path(service)}/deploys?limit=1",
+        )
+        if isinstance(data, list):
+            return data[0] if data else {}
+        return data.get("deploys", data)
+
+    def deployment_status(self, service, deploy_id):
+        return self._request(
+            "GET",
+            f"/services/{self._service_path(service)}/deploys/{parse.quote(deploy_id, safe='')}",
+        )
 
     def logs(self, owner_id, resource, start_time=None, end_time=None):
-        bounded = min(max(int(limit), 1), 100)
-        return self._request("GET", f"/logs?resource={service}&limit={bounded}")
+        params = {"ownerId": owner_id, "resource": resource}
+        if start_time:
+            params["startTime"] = start_time
+        if end_time:
+            params["endTime"] = end_time
+        return self._request("GET", "/logs?" + parse.urlencode(params, doseq=True))
+
+    def wait_for_deploy(self, service, deploy_id, timeout_seconds=900, poll_seconds=5):
+        timeout_seconds = min(max(int(timeout_seconds), 1), 1800)
+        poll_seconds = min(max(int(poll_seconds), 1), 60)
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            result = self.deployment_status(service, deploy_id)
+            status = result.get("status")
+            if status in TERMINAL_SUCCESS:
+                return result
+            if status in TERMINAL_FAILURE:
+                raise RuntimeError(f"Render deployment {deploy_id} failed with status {status}")
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"Render deployment {deploy_id} did not finish within {timeout_seconds}s")
+            time.sleep(poll_seconds)
