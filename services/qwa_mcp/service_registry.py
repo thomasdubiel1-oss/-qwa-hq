@@ -1,12 +1,15 @@
 """Allowlisted mapping from logical staging services to provider resource IDs."""
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True)
 class ServiceBinding:
     name: str
     provider: str
     resource_id: str
     environment: str = "staging"
+    owner_id: str | None = None
+
 
 class ServiceRegistry:
     def __init__(self, bindings):
