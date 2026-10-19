@@ -1,18 +1,5 @@
-# QWA Build Status — Control Plane v1
+# QWA Build Status
 
-Implemented in this branch:
-- permission policy
-- agent roles and routing map
-- audit event schema
-- dependency-free authorization prototype
-- unit tests
-- production approval contract
+Completed: permission model, agent routing, audit schema/writer, production approval contract, unit tests, CI, Hermes MCP boundary and filtered-server plan.
 
-Next implementation layers:
-1. Hermes MCP adapter
-2. GitHub branch/PR adapter
-3. staging deployment adapter
-4. approval service
-5. audit sink
-6. Obsidian knowledge adapter
-7. observability and cost controls
+Next: real QWA MCP interfaces; GitHub/CI adapter; staging adapter; scoped Obsidian adapter; approval persistence/operator UI; metrics, cost controls and agent evaluation.
