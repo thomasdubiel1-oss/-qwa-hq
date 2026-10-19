@@ -1,0 +1,2 @@
+# Runtime dependency for the managed PostgreSQL approval repository.
+psycopg[binary]>=3.2,<4
