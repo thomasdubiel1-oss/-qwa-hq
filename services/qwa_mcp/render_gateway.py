@@ -32,6 +32,6 @@ class RenderGateway:
     def status(self, service):
         return self._request("GET", f"/services/{service}/deploys?limit=1")
 
-    def logs(self, service, limit=100):
+    def logs(self, owner_id, resource, start_time=None, end_time=None):
         bounded = min(max(int(limit), 1), 100)
         return self._request("GET", f"/logs?resource={service}&limit={bounded}")
