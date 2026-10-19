@@ -10,9 +10,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
 class ApprovalAPI:
-    def __init__(self, store, *, token: str | None = None, audit=None):
+    def __init__(self, store, *, token: str | None = None, operator: str | None = None, audit=None):
         self.store = store
         self.token = token or os.environ.get("QWA_APPROVAL_TOKEN")
+        self.operator = operator or os.environ.get("QWA_APPROVAL_OPERATOR", "operator")
         if not self.token:
             raise ValueError("QWA_APPROVAL_TOKEN is required")
         self.audit = audit
@@ -27,10 +28,10 @@ class ApprovalAPI:
             return 404, {"error": "not_found"}
         return 200, self._public(record)
 
-    def decide(self, request_id: str, status: str, approver: str, reason: str | None = None):
-        record = self.store.decide(request_id, status, approver, reason)
+    def decide(self, request_id: str, status: str, reason: str | None = None):
+        record = self.store.decide(request_id, status, self.operator, reason)
         if self.audit:
-            self.audit(actor=approver, action=f"approval.{status}",
+            self.audit(actor=self.operator, action=f"approval.{status}",
                        resource=record.tool, decision=status,
                        request_id=record.request_id, reason=reason or "")
         return 200, self._public(record)
@@ -80,11 +81,9 @@ def make_handler(api: ApprovalAPI):
             try:
                 length = int(self.headers.get("Content-Length", "0"))
                 payload = json.loads(self.rfile.read(length) or b"{}")
-                approver = payload["approver"]
                 reason = payload.get("reason")
                 status, body = api.decide(
-                    parts[1], "approved" if parts[2] == "approve" else "rejected",
-                    approver, reason
+                    parts[1], "approved" if parts[2] == "approve" else "rejected", reason
                 )
                 self._send(status, body)
             except (KeyError, ValueError, TypeError, json.JSONDecodeError) as exc:
