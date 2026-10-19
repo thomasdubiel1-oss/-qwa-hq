@@ -1,0 +1,1 @@
+{"version":1,"request":{"required":["request_id","actor","action","target","reason","risk","change_summary","rollback_plan","expires_at"]},"resolution":{"allowed":["approved","denied","expired"]},"default":"denied","audit_required":true}

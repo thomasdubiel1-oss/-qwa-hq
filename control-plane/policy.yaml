@@ -1,0 +1,19 @@
+version: 1
+levels:
+  read:
+    production_mutation: deny
+    secrets: deny
+  development:
+    production_mutation: deny
+    secrets: deny
+  staging:
+    production_mutation: deny
+    secrets: scoped
+  production:
+    production_mutation: approval_required
+    secrets: scoped
+rules:
+  require_branch_for_code_changes: true
+  require_audit_event_for_tool_calls: true
+  deny_secret_storage_in_repo: true
+  deny_customer_data_in_dev: true
