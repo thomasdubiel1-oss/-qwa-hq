@@ -1,0 +1,6 @@
+{
+  "name": "qwa",
+  "tools": ["repo_inspect","issue_manage","run_tests","staging_deploy","staging_logs","metrics"],
+  "production_mutation": "approval_required",
+  "audit": true
+}
