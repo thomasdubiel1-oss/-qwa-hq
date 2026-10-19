@@ -78,6 +78,11 @@ class SQLiteApprovalStore:
             ).fetchone()
             if existing:
                 return self._row(existing)
+            same_hash = conn.execute(
+                "SELECT request_id FROM approvals WHERE request_hash = ?", (approval.request_hash,)
+            ).fetchone()
+            if same_hash and same_hash[0] != approval.request_id:
+                raise ValueError("request hash already exists for another request_id")
             conn.execute(
                 """INSERT INTO approvals
                 (request_id, actor, tool, request_hash, status, approver, reason,
