@@ -2,6 +2,7 @@
 import re
 
 from .adapters import AdapterResponse
+from .deployment_store import DeploymentRecord
 from .service_registry import ServiceRegistry
 
 _SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
@@ -32,8 +33,12 @@ class RenderStagingAdapter:
             return AdapterResponse(False, operation, {}, str(exc))
 
     def deploy(self, service, revision, request_id=None, trace_id=None):
-        binding = self._binding(service)
-        revision = self._revision(revision)
+        try:
+            binding = self._binding(service)
+            revision = self._revision(revision)
+        except Exception as exc:
+            return AdapterResponse(False, "deploy", {}, str(exc))
+
         result = self._call("deploy", self.gateway.deploy, binding.resource_id, revision)
         if result.ok:
             deploy_id = result.data.get("id")
@@ -48,9 +53,7 @@ class RenderStagingAdapter:
                 "deploy_id": deploy_id,
             })
             if self.deployment_store and request_id:
-                self.deployment_store.create(__import__(
-                    "services.qwa_mcp.deployment_store", fromlist=["DeploymentRecord"]
-                ).DeploymentRecord(
+                self.deployment_store.create(DeploymentRecord(
                     request_id, trace_id or "", binding.name, binding.provider,
                     binding.resource_id, revision, deploy_id,
                     result.data.get("status", "created"),
@@ -58,14 +61,22 @@ class RenderStagingAdapter:
         return result
 
     def status(self, service, deploy_id, request_id=None):
-        binding = self._binding(service)
+        try:
+            binding = self._binding(service)
+        except Exception as exc:
+            return AdapterResponse(False, "status", {}, str(exc))
+
         result = self._call("status", self.gateway.deployment_status, binding.resource_id, deploy_id)
         if result.ok and self.deployment_store and request_id:
             self.deployment_store.update_status(request_id, result.data.get("status", "unknown"))
         return result
 
     def logs(self, service, start_time=None, end_time=None):
-        binding = self._binding(service)
+        try:
+            binding = self._binding(service)
+        except Exception as exc:
+            return AdapterResponse(False, "logs", {}, str(exc))
+
         if not binding.owner_id:
             return AdapterResponse(False, "logs", {}, "Render owner_id is required for log queries")
         return self._call(
@@ -74,7 +85,11 @@ class RenderStagingAdapter:
         )
 
     def wait(self, service, deploy_id, timeout_seconds=900, poll_seconds=5):
-        binding = self._binding(service)
+        try:
+            binding = self._binding(service)
+        except Exception as exc:
+            return AdapterResponse(False, "wait", {}, str(exc))
+
         return self._call(
             "wait", self.gateway.wait_for_deploy, binding.resource_id,
             deploy_id, timeout_seconds, poll_seconds,
