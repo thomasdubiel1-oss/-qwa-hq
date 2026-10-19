@@ -1,0 +1,20 @@
+version: 1
+agents:
+  architect:
+    role: architecture
+    allowed_levels: [read, development]
+  engineer:
+    role: implementation
+    allowed_levels: [read, development, staging]
+  reviewer:
+    role: review
+    allowed_levels: [read, development, staging]
+  production_operator:
+    role: production
+    allowed_levels: [read, staging, production]
+    production_requires_human_approval: true
+routing:
+  architecture: architect
+  implementation: engineer
+  review: reviewer
+  production: production_operator
