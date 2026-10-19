@@ -8,9 +8,10 @@ _SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 
 
 class RenderStagingAdapter:
-    def __init__(self, registry: ServiceRegistry, gateway):
+    def __init__(self, registry: ServiceRegistry, gateway, deployment_store=None):
         self.registry = registry
         self.gateway = gateway
+        self.deployment_store = deployment_store
 
     def _binding(self, service):
         binding = self.registry.resolve(service)
@@ -32,42 +33,49 @@ class RenderStagingAdapter:
 
     def deploy(self, service, revision, request_id=None, trace_id=None):
         binding = self._binding(service)
-        result = self._call("deploy", self.gateway.deploy, binding.resource_id, self._revision(revision))
+        revision = self._revision(revision)
+        result = self._call("deploy", self.gateway.deploy, binding.resource_id, revision)
         if result.ok:
+            deploy_id = result.data.get("id")
+            if not deploy_id:
+                return AdapterResponse(False, "deploy", {}, "Render deploy response missing deploy id")
             result.data.update({
                 "service": binding.name,
                 "resource_id": binding.resource_id,
-                "revision": revision.lower(),
+                "revision": revision,
                 "request_id": request_id,
                 "trace_id": trace_id,
-                "deploy_id": result.data.get("id"),
+                "deploy_id": deploy_id,
             })
+            if self.deployment_store and request_id:
+                self.deployment_store.create(__import__(
+                    "services.qwa_mcp.deployment_store", fromlist=["DeploymentRecord"]
+                ).DeploymentRecord(
+                    request_id, trace_id or "", binding.name, binding.provider,
+                    binding.resource_id, revision, deploy_id,
+                    result.data.get("status", "created"),
+                ))
         return result
 
-    def status(self, service, deploy_id):
+    def status(self, service, deploy_id, request_id=None):
         binding = self._binding(service)
-        return self._call("status", self.gateway.deployment_status, binding.resource_id, deploy_id)
+        result = self._call("status", self.gateway.deployment_status, binding.resource_id, deploy_id)
+        if result.ok and self.deployment_store and request_id:
+            self.deployment_store.update_status(request_id, result.data.get("status", "unknown"))
+        return result
 
     def logs(self, service, start_time=None, end_time=None):
         binding = self._binding(service)
         if not binding.owner_id:
             return AdapterResponse(False, "logs", {}, "Render owner_id is required for log queries")
         return self._call(
-            "logs",
-            self.gateway.logs,
-            binding.owner_id,
-            binding.resource_id,
-            start_time,
-            end_time,
+            "logs", self.gateway.logs, binding.owner_id, binding.resource_id,
+            start_time, end_time,
         )
 
     def wait(self, service, deploy_id, timeout_seconds=900, poll_seconds=5):
         binding = self._binding(service)
         return self._call(
-            "wait",
-            self.gateway.wait_for_deploy,
-            binding.resource_id,
-            deploy_id,
-            timeout_seconds,
-            poll_seconds,
+            "wait", self.gateway.wait_for_deploy, binding.resource_id,
+            deploy_id, timeout_seconds, poll_seconds,
         )
