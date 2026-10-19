@@ -58,6 +58,13 @@ class PostgresApprovalStore:
         created = approval.created_at or _now()
         with self._connect() as conn:
             with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT request_id FROM qwa_approvals WHERE request_hash = %s",
+                    (approval.request_hash,),
+                )
+                same_hash = cur.fetchone()
+                if same_hash and same_hash[0] != approval.request_id:
+                    raise ValueError("request hash already exists for another request_id")
                 cur.execute("""
                     INSERT INTO qwa_approvals
                     (request_id, actor, tool, request_hash, status, approver,
