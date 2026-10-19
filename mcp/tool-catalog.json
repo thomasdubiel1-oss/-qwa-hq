@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "servers": {
+    "qwa-github": ["repo_inspect", "branch_create", "pr_create", "pr_read", "ci_status"],
+    "qwa-staging": ["deploy_staging", "deployment_status", "logs"],
+    "qwa-knowledge": ["knowledge_search", "knowledge_read", "knowledge_write_decision", "knowledge_write_runbook"],
+    "qwa-production": ["request_change", "approval_status"]
+  },
+  "policy": {
+    "default": "deny",
+    "production_mutations": "approval_required",
+    "side_effects_require_adapter": true
+  }
+}
