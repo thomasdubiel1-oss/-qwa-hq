@@ -67,8 +67,12 @@ class RenderStagingAdapter:
             return AdapterResponse(False, "status", {}, str(exc))
 
         result = self._call("status", self.gateway.deployment_status, binding.resource_id, deploy_id)
-        if result.ok and self.deployment_store and request_id:
-            self.deployment_store.update_status(request_id, result.data.get("status", "unknown"))
+        if result.ok and self.deployment_store:
+            status = result.data.get("status", "unknown")
+            if request_id:
+                self.deployment_store.update_status(request_id, status)
+            elif self.deployment_store.get_by_deploy_id(deploy_id):
+                self.deployment_store.update_status_by_deploy_id(deploy_id, status)
         return result
 
     def logs(self, service, start_time=None, end_time=None):
@@ -90,7 +94,12 @@ class RenderStagingAdapter:
         except Exception as exc:
             return AdapterResponse(False, "wait", {}, str(exc))
 
-        return self._call(
+        result = self._call(
             "wait", self.gateway.wait_for_deploy, binding.resource_id,
             deploy_id, timeout_seconds, poll_seconds,
         )
+        if result.ok and self.deployment_store and self.deployment_store.get_by_deploy_id(deploy_id):
+            self.deployment_store.update_status_by_deploy_id(
+                deploy_id, result.data.get("status", "unknown")
+            )
+        return result
