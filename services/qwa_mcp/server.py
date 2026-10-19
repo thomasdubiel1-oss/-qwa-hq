@@ -1,6 +1,8 @@
 from .approval_store import Approval, ApprovalStore
 from .catalog import CATALOG
 from .models import ToolRequest, ToolResult
+from .idempotency import IdempotencyStore
+from .request_context import Metrics
 from .adapters import AdapterResponse, DryRunAdapter
 
 LEVEL_ORDER = {"read": 0, "development": 1, "staging": 2, "production": 3}
@@ -9,9 +11,11 @@ LEVEL_ORDER = {"read": 0, "development": 1, "staging": 2, "production": 3}
 class QWAMCPServer:
     """Policy-first dispatcher with explicit, injectable tool adapters."""
 
-    def __init__(self, approvals: ApprovalStore | None = None, adapters: dict | None = None):
+    def __init__(self, approvals: ApprovalStore | None = None, adapters: dict | None = None, idempotency: IdempotencyStore | None = None, metrics: Metrics | None = None):
         self.approvals = approvals or ApprovalStore()
         self.adapters = adapters or {}
+        self.idempotency = idempotency or IdempotencyStore()
+        self.metrics = metrics or Metrics()
 
     def authorize(self, request: ToolRequest) -> ToolResult:
         spec = CATALOG.get(request.tool)
@@ -25,8 +29,14 @@ class QWAMCPServer:
         return ToolResult(True, "authorized", {"tool": spec.name})
 
     def dispatch(self, request: ToolRequest) -> ToolResult:
+        cached = self.idempotency.get(request.request_id)
+        if cached is not None:
+            self.metrics.increment("tool.replays")
+            return cached
+        self.metrics.increment("tool.calls")
         result = self.authorize(request)
         if result.status != "authorized":
+            self.idempotency.put(request.request_id, result)
             return result
         adapter = self.adapters.get(request.tool, DryRunAdapter())
         try:
@@ -36,9 +46,11 @@ class QWAMCPServer:
             return ToolResult(False, "adapter_error", error=str(exc))
         if not isinstance(response, AdapterResponse):
             return ToolResult(False, "adapter_error", error="adapter returned invalid response")
-        return ToolResult(response.ok, "executed" if response.ok else "adapter_error",
-                          {"operation": response.operation, "data": response.data},
-                          error=response.error)
+        result = ToolResult(response.ok, "executed" if response.ok else "adapter_error",
+                            {"operation": response.operation, "data": response.data},
+                            error=response.error)
+        self.idempotency.put(request.request_id, result)
+        return result
 
     @staticmethod
     def _operation_name(tool: str) -> str:
