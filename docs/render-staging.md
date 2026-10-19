@@ -22,6 +22,10 @@ Render supports deploying a specific Git commit with `commitId`; the deploy resp
 - Unknown providers, services, invalid revisions, and missing log owner IDs fail closed.
 - This layer does not trigger production deployments.
 
-## Next layer
+## Persistence
 
-The remaining control-plane work is deployment persistence: store request ID, trace ID, service alias, bound resource ID, revision, Render deploy ID, and lifecycle status in the durable approval/deployment store so retries and audit inspection are deterministic.
+Deployment persistence is implemented in `services/qwa_mcp/deployment_store.py`.
+
+Each staging deployment records request ID, trace ID, service alias, bound resource ID, revision, Render deploy ID, and lifecycle status. Records are idempotent by request ID and immutable across deployment identity fields, preventing a reused request ID from silently targeting a different revision or deploy.
+
+Status reads and bounded wait operations can update the persisted lifecycle by Render deploy ID, allowing later status checks and audit tooling to reconstruct deployment state.
