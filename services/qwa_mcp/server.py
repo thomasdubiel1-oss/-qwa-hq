@@ -30,15 +30,22 @@ class QWAMCPServer:
             return ToolResult(False, "denied", error=f"requires {spec.required_level} level")
         if spec.approval_required:
             if isinstance(self.approvals, SQLiteApprovalStore):
+                expected_hash = request_hash(request.tool, request.actor, request.arguments)
                 approval = self.approvals.create(
                     ApprovalRecord(
                         request.request_id,
                         request.actor,
                         request.tool,
-                        request_hash(request.tool, request.actor, request.arguments),
+                        expected_hash,
                         "pending",
                     )
                 )
+                if approval.request_hash != expected_hash:
+                    return ToolResult(False, "denied", error="request_id is already bound to different arguments")
+                if approval.status == "approved":
+                    return ToolResult(True, "authorized", {"tool": spec.name, "approval_id": approval.request_id})
+                if approval.status == "rejected":
+                    return ToolResult(False, "denied", error="request was rejected")
                 return ToolResult(True, "approval_required", {"request_id": approval.request_id})
             approval = self.approvals.create(
                 Approval(request.request_id, request.actor, request.tool)
@@ -82,7 +89,8 @@ class QWAMCPServer:
         self.metrics.increment("tool.calls")
         result = self.authorize(request)
         if result.status != "authorized":
-            self.idempotency.put(request.request_id, result)
+            if result.status != "approval_required":
+                self.idempotency.put(request.request_id, result)
             return result
         adapter = self.adapters.get(request.tool, DryRunAdapter())
         try:
