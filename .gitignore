@@ -4,3 +4,4 @@
 secrets/
 *.pem
 *.key
+\n.qwa/\n*.sqlite3\n
