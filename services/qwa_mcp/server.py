@@ -15,8 +15,6 @@ class QWAMCPServer:
     def __init__(self, approvals=None, adapters: dict | None = None,
                  idempotency: IdempotencyStore | None = None,
                  metrics: Metrics | None = None):
-        # SQLite is the durable local default. ApprovalStore remains available
-        # for tests and compatibility; production can inject a managed DB store.
         self.approvals = approvals or SQLiteApprovalStore()
         self.adapters = adapters or {}
         self.idempotency = idempotency or IdempotencyStore()
@@ -29,48 +27,53 @@ class QWAMCPServer:
         if LEVEL_ORDER.get(request.level, -1) < LEVEL_ORDER.get(spec.required_level, 99):
             return ToolResult(False, "denied", error=f"requires {spec.required_level} level")
         if spec.approval_required:
-            if isinstance(self.approvals, SQLiteApprovalStore):
-                approval = self.approvals.create(
-                    ApprovalRecord(
-                        request.request_id,
-                        request.actor,
-                        request.tool,
-                        request_hash(request.tool, request.actor, request.arguments),
-                        "pending",
+            try:
+                if isinstance(self.approvals, SQLiteApprovalStore) or self._durable_store(self.approvals):
+                    approval = self.approvals.create(
+                        ApprovalRecord(
+                            request.request_id,
+                            request.actor,
+                            request.tool,
+                            request_hash(request.tool, request.actor, request.arguments),
+                            "pending",
+                        )
                     )
-                )
-                return ToolResult(True, "approval_required", {"request_id": approval.request_id})
-            approval = self.approvals.create(
-                Approval(request.request_id, request.actor, request.tool)
-            )
+                else:
+                    approval = self.approvals.create(
+                        Approval(request.request_id, request.actor, request.tool)
+                    )
+            except ValueError as exc:
+                return ToolResult(False, "approval_error", error=str(exc))
             return ToolResult(True, "approval_required", {"request_id": approval.request_id})
         return ToolResult(True, "authorized", {"tool": spec.name})
 
+    @staticmethod
+    def _durable_store(store) -> bool:
+        return all(hasattr(store, name) for name in ("create", "get", "decide"))
+
     def approve(self, request_id: str, approver: str, reason: str | None = None) -> ToolResult:
         """Record an explicit human approval; this does not execute the mutation."""
-        if not isinstance(self.approvals, SQLiteApprovalStore):
+        if not self._durable_store(self.approvals):
             return ToolResult(False, "approval_error", error="approval decision requires durable store")
         try:
             record = self.approvals.decide(request_id, "approved", approver, reason)
         except (KeyError, ValueError) as exc:
             return ToolResult(False, "approval_error", error=str(exc))
         return ToolResult(True, "approved", {
-            "request_id": record.request_id,
-            "approver": record.approver,
+            "request_id": record.request_id, "approver": record.approver,
             "decided_at": record.decided_at,
         })
 
     def reject(self, request_id: str, approver: str, reason: str | None = None) -> ToolResult:
         """Record an explicit human rejection; this does not execute anything."""
-        if not isinstance(self.approvals, SQLiteApprovalStore):
+        if not self._durable_store(self.approvals):
             return ToolResult(False, "approval_error", error="approval decision requires durable store")
         try:
             record = self.approvals.decide(request_id, "rejected", approver, reason)
         except (KeyError, ValueError) as exc:
             return ToolResult(False, "approval_error", error=str(exc))
         return ToolResult(True, "rejected", {
-            "request_id": record.request_id,
-            "approver": record.approver,
+            "request_id": record.request_id, "approver": record.approver,
             "decided_at": record.decided_at,
         })
 
