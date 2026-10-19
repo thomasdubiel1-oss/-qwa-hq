@@ -1,21 +1,31 @@
-# Render staging adapter
+# Render staging deployment control
 
-QWA now has a provider-neutral staging contract plus a concrete Render HTTP gateway.
-The gateway uses Render's REST API and requires RENDER_API_KEY; the key must never
-be committed to Git.
+QWA treats Render as a provider behind an allowlisted staging adapter.
 
-## Safety boundary
+## Lifecycle
 
-- deploy_staging remains governed by the QWA MCP catalog and staging level.
-- The Render gateway is not automatically instantiated by the dispatcher.
-- Tests mock HTTP and never contact Render.
-- Production credentials are not stored in the repository.
-- A real Render workspace/service must be selected before deployment is enabled.
+1. Resolve a logical QWA service alias through `ServiceRegistry`.
+2. Require `environment=staging` and `provider=render`.
+3. Require an exact 40-character Git commit SHA at the adapter boundary.
+4. Trigger the Render deploy against the bound service resource.
+5. Capture the Render deploy ID together with QWA request/trace context.
+6. Poll the specific deploy until `live` or a terminal failure state.
+7. Query logs only through the binding's Render workspace `owner_id`.
 
-## Planned wiring
+Render supports deploying a specific Git commit with `commitId`; the deploy response includes a deploy ID and lifecycle status, and a specific deploy can be retrieved by service ID and deploy ID. Log queries require the workspace owner ID and are timestamp-paginated. citeturn0search0turn0search3turn0search1
 
-QWAMCPServer -> StagingAdapter -> RenderGateway -> Render API
+## Security boundary
 
-The next deployment layer should bind service aliases to approved Render service
-IDs, record request ID and revision, wait for deploy state, and fail closed on
-unknown services.
+- Callers provide only an approved logical service alias, never an arbitrary Render resource target.
+- Production services are rejected by the registry.
+- Render credentials stay outside Git and are read only by the gateway process.
+- Unknown providers, services, invalid revisions, and missing log owner IDs fail closed.
+- This layer does not trigger production deployments.
+
+## Persistence
+
+Deployment persistence is implemented in `services/qwa_mcp/deployment_store.py`.
+
+Each staging deployment records request ID, trace ID, service alias, bound resource ID, revision, Render deploy ID, and lifecycle status. Records are idempotent by request ID and immutable across deployment identity fields, preventing a reused request ID from silently targeting a different revision or deploy.
+
+Status reads and bounded wait operations can update the persisted lifecycle by Render deploy ID, allowing later status checks and audit tooling to reconstruct deployment state.
