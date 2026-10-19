@@ -1,8 +1,4 @@
-"""Durable deployment lifecycle storage for staging control.
-
-SQLite is the local/staging implementation. Production can use the same
-contract with managed PostgreSQL.
-"""
+"""Durable deployment lifecycle storage for staging control."""
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -53,31 +49,33 @@ class SQLiteDeploymentStore:
     def create(self, record):
         now = _now()
         with self._connect() as conn:
-            existing = conn.execute(
-                "SELECT * FROM deployments WHERE request_id = ?",
-                (record.request_id,),
-            ).fetchone()
+            existing = conn.execute("SELECT * FROM deployments WHERE request_id = ?", (record.request_id,)).fetchone()
             if existing:
-                return self._row(existing)
+                current = self._row(existing)
+                identity = (current.trace_id, current.service, current.provider, current.resource_id, current.revision, current.deploy_id)
+                requested = (record.trace_id, record.service, record.provider, record.resource_id, record.revision, record.deploy_id)
+                if identity != requested:
+                    raise ValueError("request_id is already bound to a different deployment")
+                return current
             conn.execute(
                 """INSERT INTO deployments
                    (request_id, trace_id, service, provider, resource_id,
                     revision, deploy_id, status, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    record.request_id, record.trace_id, record.service,
-                    record.provider, record.resource_id, record.revision,
-                    record.deploy_id, record.status, record.created_at or now,
-                    record.updated_at or now,
-                ),
+                (record.request_id, record.trace_id, record.service, record.provider,
+                 record.resource_id, record.revision, record.deploy_id, record.status,
+                 record.created_at or now, record.updated_at or now),
             )
         return self.get(record.request_id)
 
     def get(self, request_id):
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM deployments WHERE request_id = ?", (request_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM deployments WHERE request_id = ?", (request_id,)).fetchone()
+        return self._row(row) if row else None
+
+    def get_by_deploy_id(self, deploy_id):
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM deployments WHERE deploy_id = ?", (deploy_id,)).fetchone()
         return self._row(row) if row else None
 
     def update_status(self, request_id, status):
@@ -89,6 +87,12 @@ class SQLiteDeploymentStore:
         if not changed:
             raise KeyError(request_id)
         return self.get(request_id)
+
+    def update_status_by_deploy_id(self, deploy_id, status):
+        record = self.get_by_deploy_id(deploy_id)
+        if record is None:
+            raise KeyError(deploy_id)
+        return self.update_status(record.request_id, status)
 
     @staticmethod
     def _row(row):
