@@ -1,0 +1,7 @@
+{
+  "repo": "thomasdubiel1-oss/-qwa-hq",
+  "production_access": false,
+  "secret_access": false,
+  "write_to_main": false,
+  "workflow": ["branch","inspect","implement","test","summarize","pr"]
+}
