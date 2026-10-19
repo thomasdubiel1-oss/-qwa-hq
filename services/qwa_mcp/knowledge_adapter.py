@@ -1,9 +1,4 @@
-"""Scoped knowledge adapter for an Obsidian-compatible vault.
-
-The adapter intentionally supports only approved knowledge paths. It is a
-local filesystem implementation so the core MCP service stays independent of
-any particular Obsidian plugin or transport.
-"""
+"""Scoped knowledge adapter for an Obsidian-compatible vault."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,8 +29,7 @@ class ScopedKnowledgeAdapter:
         for path in self.root.rglob("*.md"):
             rel = path.relative_to(self.root).as_posix()
             if any(rel.startswith(p) for p in self.allowed_prefixes):
-                text = path.read_text(encoding="utf-8")
-                if query.lower() in text.lower():
+                if query.lower() in path.read_text(encoding="utf-8").lower():
                     matches.append(rel)
         return AdapterResponse(True, "search", {"matches": matches})
 
