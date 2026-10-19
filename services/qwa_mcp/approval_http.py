@@ -5,11 +5,9 @@ It is intended to sit behind TLS and network access controls in deployment.
 """
 import json
 import os
+import secrets
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
-
-from .durable_approval_store import SQLiteApprovalStore
-
 
 class ApprovalAPI:
     def __init__(self, store, *, token: str | None = None, audit=None):
@@ -20,7 +18,8 @@ class ApprovalAPI:
         self.audit = audit
 
     def authenticate(self, authorization: str | None) -> bool:
-        return authorization == f"Bearer {self.token}"
+        expected = f"Bearer {self.token}"
+        return bool(authorization) and secrets.compare_digest(authorization, expected)
 
     def get(self, request_id: str):
         record = self.store.get(request_id)
@@ -31,29 +30,19 @@ class ApprovalAPI:
     def decide(self, request_id: str, status: str, approver: str, reason: str | None = None):
         record = self.store.decide(request_id, status, approver, reason)
         if self.audit:
-            self.audit(
-                actor=approver,
-                action=f"approval.{status}",
-                resource=record.tool,
-                decision=status,
-                request_id=record.request_id,
-                reason=reason or "",
-            )
+            self.audit(actor=approver, action=f"approval.{status}",
+                       resource=record.tool, decision=status,
+                       request_id=record.request_id, reason=reason or "")
         return 200, self._public(record)
 
     @staticmethod
     def _public(record):
         return {
-            "request_id": record.request_id,
-            "actor": record.actor,
-            "tool": record.tool,
-            "status": record.status,
-            "approver": record.approver,
-            "reason": record.reason,
-            "created_at": record.created_at,
-            "decided_at": record.decided_at,
+            "request_id": record.request_id, "actor": record.actor,
+            "tool": record.tool, "status": record.status,
+            "approver": record.approver, "reason": record.reason,
+            "created_at": record.created_at, "decided_at": record.decided_at,
         }
-
 
 def make_handler(api: ApprovalAPI):
     class Handler(BaseHTTPRequestHandler):
@@ -93,17 +82,17 @@ def make_handler(api: ApprovalAPI):
                 payload = json.loads(self.rfile.read(length) or b"{}")
                 approver = payload["approver"]
                 reason = payload.get("reason")
-                status, body = api.decide(parts[1], "approved" if parts[2] == "approve" else "rejected",
-                                          approver, reason)
+                status, body = api.decide(
+                    parts[1], "approved" if parts[2] == "approve" else "rejected",
+                    approver, reason
+                )
                 self._send(status, body)
             except (KeyError, ValueError, TypeError, json.JSONDecodeError) as exc:
                 self._send(400, {"error": str(exc)})
 
         def log_message(self, format, *args):
             return
-
     return Handler
-
 
 def serve(api: ApprovalAPI, host="127.0.0.1", port=8787):
     return ThreadingHTTPServer((host, port), make_handler(api))
