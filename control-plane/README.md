@@ -1,5 +1,5 @@
 # QWA Control Plane v1
 
-Minimal control-plane contracts for routing agent work, enforcing approval gates, and recording auditable actions.
+This layer defines routing, permissions, approvals and audit contracts. Hermes is the orchestrator; MCP is the adapter boundary; GitHub/CI is the executable change boundary.
 
-This is intentionally a framework layer: it does not contain production credentials or directly mutate production.
+Hermes supports stdio and HTTP MCP servers plus per-server tool filtering, so QWA will expose the smallest useful tool surface rather than a broad unrestricted integration.
