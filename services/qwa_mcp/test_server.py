@@ -9,7 +9,7 @@ from .models import ToolRequest
 def test_read_tool_authorizes():
     server = QWAMCPServer(ApprovalStore(str(Path(tempfile.mkdtemp()) / "a.jsonl")))
     result = server.dispatch(ToolRequest("repo_inspect", "hermes", "read", {"repo": "qwa"}, "r1"))
-    assert result.status == "adapter_required"
+    assert result.status == "executed"
 
 
 def test_production_requires_approval():
