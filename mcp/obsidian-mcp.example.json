@@ -1,0 +1,8 @@
+{
+  "name": "qwa-obsidian",
+  "read_scopes": ["01-Architecture/**","02-Product/**","03-Agents/**","04-Engineering/**","05-Research/**","06-Competitive-Intelligence/**","07-Operations/**","08-Decisions/**","09-Runbooks/**"],
+  "write_scopes": ["00-Inbox/**","08-Decisions/**","09-Runbooks/**"],
+  "deny": [".obsidian/**","**/.env*","**/*secret*","**/*credential*"],
+  "audit": true,
+  "shell_execution": false
+}
