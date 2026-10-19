@@ -10,8 +10,10 @@ mcp_servers:
   qwa-knowledge:
     url: "https://mcp.qwa.internal/knowledge"
     tools:
-      include: [search, read, write_decision, write_runbook]
+      include: [knowledge_search, knowledge_read, knowledge_write_decision, knowledge_write_runbook]
   qwa-production:
     url: "https://mcp.qwa.internal/production"
     tools:
       include: [request_change, approval_status]
+
+# Private WhatsApp operator channel settings are configured in ~/.hermes/config.yaml.
