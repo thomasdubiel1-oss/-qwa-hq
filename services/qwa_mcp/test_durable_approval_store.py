@@ -9,10 +9,8 @@ class DurableApprovalStoreTests(unittest.TestCase):
     def test_sqlite_approval_survives_reopen(self):
         path = Path(tempfile.mkdtemp()) / "approvals.sqlite3"
         store = SQLiteApprovalStore(str(path))
-        record = ApprovalRecord(
-            "r1", "hermes", "request_change",
-            request_hash("request_change", "hermes", {"x": 1}), "pending"
-        )
+        record = ApprovalRecord("r1", "hermes", "request_change",
+                                request_hash("request_change", "hermes", {"x": 1}), "pending")
         store.create(record)
         reopened = SQLiteApprovalStore(str(path))
         self.assertEqual(reopened.get("r1").status, "pending")
