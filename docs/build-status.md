@@ -21,7 +21,7 @@ The dispatcher validates and authorizes requests before adapter execution. Produ
 ## Next
 
 1. Add a managed Postgres approval repository and transaction/locking tests.
-2. Implement the real Render staging gateway behind the existing staging protocol.
+2. Bind approved Render service aliases and deploy-state polling behind the staging protocol.
 3. Add an operator approval surface/API with authentication and audit events.
 4. Add production execution only through an approved request token and replay-safe transaction.
 5. Add cost budgets, rate limits, and evaluation/observability dashboards.
