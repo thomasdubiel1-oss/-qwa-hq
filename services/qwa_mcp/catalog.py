@@ -6,7 +6,7 @@ CATALOG = {
     "pr_create": ToolSpec("pr_create", "Open a pull request from an existing branch.", "medium", "development", True),
     "pr_read": ToolSpec("pr_read", "Read pull-request metadata and review state.", "low", "read"),
     "ci_status": ToolSpec("ci_status", "Read CI and workflow status.", "low", "read"),
-    "deploy_staging": ToolSpec("deploy_staging", "Request a staging deployment.", "medium", "staging", True),
+    "deploy_staging": ToolSpec("deploy_staging", "Request a staging deployment.", "medium", "staging", True, True),
     "deployment_status": ToolSpec("deployment_status", "Read deployment status.", "low", "read"),
     "logs": ToolSpec("logs", "Read scoped application logs.", "medium", "staging"),
     "knowledge_search": ToolSpec("knowledge_search", "Search approved durable knowledge.", "low", "read"),
